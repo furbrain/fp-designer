@@ -45,7 +45,7 @@ class Pad(Initialisable, CalculateVars):
         "right": ["self._left + self._width",
                   "self._left + (self._hcenter-self._left)*2",
                   "self._hcenter + self._width/2"],
-        "hcenter": ["(self._right - self._left)/2",
+        "hcenter": ["(self._right + self._left)/2",
                     "self._right - self._width/2",   
                     "self._left + self._width/2"],
         "height": ["self._bottom-self._top", 
@@ -57,11 +57,10 @@ class Pad(Initialisable, CalculateVars):
         "bottom": ["self._top + self._height",
                   "self._top + (self._vcenter-self._top)*2",
                   "self._vcenter + self._height/2"],
-        "vcenter": ["(self._bottom - self._top)/2",
+        "vcenter": ["(self._bottom + self._top)/2",
                     "self._bottom - self._height/2",   
                     "self._top + self._height/2"],
         "name": ["str(self.number)"],
-        "name": ["1"],
         "number": ["1"],
         "round": ['False'],
         "units": ['"mm"']             
@@ -239,29 +238,35 @@ class PCB(Initialisable, CalculateVars):
     def __init__(self, **kwargs):
         self.parent = None
         self.children = []
+        self.offsetx = 0
+        self.offsety = 0        
         super().__init__(**kwargs)
         
     def add(self, *items):
         self.children.extend(items)
-
-    def get_text(self, center=True, outline=None, outline_thickness=0.5):
+        
+    def get_extents(self):
         minx = min(x.left for x in self.children)
         maxx = max(x.right for x in self.children)
         miny = min(x.top for x in self.children)
         maxy = max(x.bottom for x in self.children)
-        if center:
-            self.offsetx = (minx + maxx)/2
-            self.offsety = (miny + maxy)/2
-        else:
-            self.offsetx = 0
-            self.offsety = 0
-        if outline:
-            HLine(self, left=minx-outline, right=maxx+outline, vcenter=maxy+outline, thickness=outline_thickness)
-            HLine(self, left=minx-outline, right=maxx+outline, vcenter=miny-outline, thickness=outline_thickness)
-            VLine(self, top=maxy+outline, bottom=miny-outline, hcenter=minx-outline, thickness=outline_thickness)
-            VLine(self, top=maxy+outline, bottom=miny-outline, hcenter=maxx+outline, thickness=outline_thickness)
-            
+        return (minx, miny, maxx, maxy)
+                
+    def set_center(self):
+        minx,miny,maxx,maxy = self.get_extents()
+        self.offsetx = (minx + maxx)/2
+        self.offsety = (miny + maxy)/2
         
+    def generate_outline(self, offset=0.8, thickness=0.5):
+        minx,miny,maxx,maxy = self.get_extents()
+        HLine(self, left=minx-offset, right=maxx+offset, vcenter=maxy+offset, height=thickness)
+        HLine(self, left=minx-offset, right=maxx+offset, vcenter=miny-offset, height=thickness)
+        VLine(self, top=maxy+offset, bottom=miny-offset, hcenter=minx-offset, width=thickness)
+        VLine(self, top=maxy+offset, bottom=miny-offset, hcenter=maxx+offset, width=thickness)
+
+    def get_text(self, center=True):
+        if center:
+            self.set_center()
         text = ''
         start = 'Element ["" "{name}" "" "" 0 0 0 0 0 100 ""] (\n'
         end = ')\n'
